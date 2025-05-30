@@ -10,7 +10,8 @@
 #include "serial.h"
 #include "udp.h"
 #include "option.h"
-#include "mavlink/common/mavlink.h"
+//#include "mavlink/common/mavlink.h"
+#include "common/mavlink.h"
 
 #define FILESEPERATOR '/'
 #define SERIAL_DEVICE "/dev/ttyACM0"
