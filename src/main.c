@@ -53,16 +53,10 @@ extern char *progname;
 
 int main(int argc, char *argv[]) {
 
-/*
-    if ((prognamep = strrchr(argv[0], FILESEPERATOR)) == NULL)
-        progname = argv[0];
-    else {
-        ++prognamep;
-        progname = prognamep;
-    }
-*/
     getProgramName(argv);
 
+    options.device = SERIAL_DEVICE;
+    options.baud = SERIAL_DEVICE_BAUDRATE;
     parseOptions(argc, argv);
 
     if (options.daemon) {
