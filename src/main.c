@@ -1,0 +1,163 @@
+#include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <syslog.h>
+#include <stdlib.h>
+#include <errno.h>
+
+#include "serial.h"
+#include "udp.h"
+#include "option.h"
+#include "mavlink/common/mavlink.h"
+
+#define FILESEPERATOR '/'
+#define SERIAL_DEVICE "/dev/ttyACM0"
+#define BAUDRATE 57600
+#define UDP_IP "192.168.178.52"
+#define UDP_PORT 14550
+
+options_t options;
+
+int main(int argc, char *argv[]) {
+   char *prognamep;
+   char *progname;
+   if ((prognamep = strrchr(argv[0], FILESEPERATOR)) == NULL)
+        progname = argv[0];
+    else {
+        ++prognamep;
+        progname = prognamep;
+    }
+
+   parseoptions(argc, argv);
+
+   if (options.daemon) {
+      pid_t pid = fork();
+      switch (pid) {
+         case -1: /* Fehler */
+            fprintf(stderr, "%s: Fehler in fork(): %s.\n", progname, strerror(errno));
+            exit(EXIT_FAILURE);
+            break;
+         case 0: /* Kindproze\303\237 l\303\244uft weiter */
+            break;
+         default: /* Elternproze\303\237 terminiert umgehend */
+            exit(EXIT_SUCCESS);
+            break;
+      }
+
+      if (setsid() < 0) {
+         syslog(LOG_ERR, "Fehler in setsid(): %s.\n", strerror(errno));
+         exit(EXIT_FAILURE);
+      }
+
+ //       switch (pid = fork()) {
+ //           case -1: /* Fehler */
+ //               syslog(LOG_ERR, "Fehler in fork(): %s.\n", strerror(errno));
+ //               exit(EXIT_FAILURE);
+ //               break;
+ //           case 0: /* Kindproze\303\237 l\303\244uft weiter */
+ //               break;
+ //           default: /* Elternproze\303\237 terminiert umgehend */
+ //               exit(EXIT_SUCCESS);
+ //               break;
+ //       }
+//        close(STDIN_FILENO);
+//        close(STDOUT_FILENO);
+//        close(STDERR_FILENO);
+
+//        chdir("/");
+//        umask(0);
+   }
+
+if (options.daemon) sleep(10);
+
+    int serial_fd = open_serial(SERIAL_DEVICE, BAUDRATE);
+    if (serial_fd < 0) {
+        perror("Serial open failed");
+        return 1;
+    }
+
+    int udp_fd = setup_udp_client_socket(UDP_IP, UDP_PORT);
+    if (udp_fd < 0) {
+        perror("UDP socket failed");
+        return 1;
+    }
+
+    uint8_t buffer[1024];
+    mavlink_message_t msg;
+    mavlink_status_t status;
+
+    while (1) {
+        int len = read_serial(serial_fd, buffer, sizeof(buffer));
+        if (len <= 0) {
+            usleep(1000);
+            continue;
+        }
+
+        for (int i = 0; i < len; ++i) {
+            if (mavlink_parse_char(MAVLINK_COMM_0, buffer[i], &msg, &status)) {
+
+                if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
+                    mavlink_heartbeat_t hb;
+                    mavlink_msg_heartbeat_decode(&msg, &hb);
+                    bool armed = hb.base_mode & MAV_MODE_FLAG_SAFETY_ARMED;
+                    printf("ARMED STATUS: %s\n", armed ? "YES" : "NO");
+
+                } else if (msg.msgid == MAVLINK_MSG_ID_SYS_STATUS) {
+                    mavlink_sys_status_t sys;
+                    mavlink_msg_sys_status_decode(&msg, &sys);
+                    
+                    float voltage = sys.voltage_battery / 1000.0f; // mV → V
+                    float current = sys.current_battery / 100.0f;   // cA → A
+                    
+                    printf("Batterie: %.2f V, %.2f A\n", voltage, current);
+
+                } else if (msg.msgid == MAVLINK_MSG_ID_BATTERY_STATUS) { /* 147 */
+                    mavlink_battery_status_t bat;
+                    mavlink_msg_battery_status_decode(&msg, &bat);
+
+                    /*printf("Battery ID: %d\n", bat.id);
+                    for (int i = 0; i < bat.cell_count; ++i) {
+                        if (bat.voltages[i] != UINT16_MAX)
+                            printf("        Zelle %d: %.3f V\n", i + 1, bat.voltages[i] / 1000.0f);
+                    }
+                    printf("  Strom: %.2f A\n", bat.current_battery / 100.0f);*/
+                } else if (msg.msgid == MAVLINK_MSG_ID_POWER_STATUS      /* 125 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_SERVO_OUTPUT_RAW  /*  36 */ || 
+                           msg.msgid == MAVLINK_MSG_ID_SYSTEM_TIME       /*   2 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_NAV_CONTROLLER_OUTPUT /* 62 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_RC_CHANNELS       /* 65 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_RAW_IMU           /* 27 */ || 
+                           msg.msgid == MAVLINK_MSG_ID_GPS_RAW_INT       /* 24 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_SCALED_PRESSURE       /* 29 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_ATTITUDE           /* 30 */ || 
+                           msg.msgid == MAVLINK_MSG_ID_LOCAL_POSITION_NED       /* 32 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT   /* 33 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_MISSION_CURRENT /* 42*/ ||
+                           msg.msgid == MAVLINK_MSG_ID_VFR_HUD /* 74 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT /* 87 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_TERRAIN_REQUEST   /* 133 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_TERRAIN_CHECK /* 135 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_TERRAIN_REPORT  /* 136 */ ||
+                           msg.msgid == MAVLINK_MSG_ID_VIBRATION   /* 241 */
+                           ) {
+
+                    //printf("### finde diese msg-id %d\n", msg.msgid);
+
+                } else {
+                    printf("### unknown msg-id %d\n", msg.msgid);
+                }
+
+
+                uint8_t out_buf[MAVLINK_MAX_PACKET_LEN];
+                int out_len = mavlink_msg_to_send_buffer(out_buf, &msg);
+                send_udp_packet(udp_fd, out_buf, out_len);
+            }
+        }
+    }
+
+    close_serial(serial_fd);
+    close(udp_fd);
+    return 0;
+}
