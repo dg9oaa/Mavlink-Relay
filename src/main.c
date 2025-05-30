@@ -1,3 +1,32 @@
+/* 
+ * MIT License
+ * 
+ * Copyright (c) 2025 Jonny Röker
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ * 
+ * File:   main.c
+ * Author: jonny
+ *
+ * Created on 30. Mai 2025, 14:26
+ */
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -10,70 +39,73 @@
 #include "serial.h"
 #include "udp.h"
 #include "option.h"
-//#include "mavlink/common/mavlink.h"
 #include "common/mavlink.h"
 
-#define FILESEPERATOR '/'
+
 #define SERIAL_DEVICE "/dev/ttyACM0"
-#define BAUDRATE 57600
+#define SERIAL_DEVICE_BAUDRATE 57600
+
 #define UDP_IP "192.168.178.52"
 #define UDP_PORT 14550
 
 options_t options;
+extern char *progname;
 
 int main(int argc, char *argv[]) {
-   char *prognamep;
-   char *progname;
-   if ((prognamep = strrchr(argv[0], FILESEPERATOR)) == NULL)
+
+/*
+    if ((prognamep = strrchr(argv[0], FILESEPERATOR)) == NULL)
         progname = argv[0];
     else {
         ++prognamep;
         progname = prognamep;
     }
+*/
+    getProgramName(argv);
 
-   parseoptions(argc, argv);
+    parseOptions(argc, argv);
 
-   if (options.daemon) {
-      pid_t pid = fork();
-      switch (pid) {
-         case -1: /* Fehler */
-            fprintf(stderr, "%s: Fehler in fork(): %s.\n", progname, strerror(errno));
+    if (options.daemon) {
+        pid_t pid = fork();
+        switch (pid) {
+            case -1: /* Fehler */
+                fprintf(stderr, "%s: error to fork(): %s.\n", progname, strerror(errno));
+                exit(EXIT_FAILURE);
+                break;
+            case 0: /* Child process continues */
+                break;
+            default: /* Parent process terminated immediately */
+                exit(EXIT_SUCCESS);
+                break;
+        }
+
+        if (setsid() < 0) {
+            syslog(LOG_ERR, "Fehler in setsid(): %s.\n", strerror(errno));
             exit(EXIT_FAILURE);
-            break;
-         case 0: /* Kindproze\303\237 l\303\244uft weiter */
-            break;
-         default: /* Elternproze\303\237 terminiert umgehend */
-            exit(EXIT_SUCCESS);
-            break;
-      }
+        }
 
-      if (setsid() < 0) {
-         syslog(LOG_ERR, "Fehler in setsid(): %s.\n", strerror(errno));
-         exit(EXIT_FAILURE);
-      }
+        //       switch (pid = fork()) {
+        //           case -1: /* Fehler */
+        //               syslog(LOG_ERR, "Fehler in fork(): %s.\n", strerror(errno));
+        //               exit(EXIT_FAILURE);
+        //               break;
+        //           case 0: /* Child process continues */
+        //               break;
+        //           default: /* Parent process terminated immediately */
+        //               exit(EXIT_SUCCESS);
+        //               break;
+        //       }
+        //        close(STDIN_FILENO);
+        //        close(STDOUT_FILENO);
+        //        close(STDERR_FILENO);
 
- //       switch (pid = fork()) {
- //           case -1: /* Fehler */
- //               syslog(LOG_ERR, "Fehler in fork(): %s.\n", strerror(errno));
- //               exit(EXIT_FAILURE);
- //               break;
- //           case 0: /* Kindproze\303\237 l\303\244uft weiter */
- //               break;
- //           default: /* Elternproze\303\237 terminiert umgehend */
- //               exit(EXIT_SUCCESS);
- //               break;
- //       }
-//        close(STDIN_FILENO);
-//        close(STDOUT_FILENO);
-//        close(STDERR_FILENO);
+        //        chdir("/");
+        //        umask(0);
+    }
 
-//        chdir("/");
-//        umask(0);
-   }
+    if (options.daemon) sleep(10);
 
-if (options.daemon) sleep(10);
-
-    int serial_fd = open_serial(SERIAL_DEVICE, BAUDRATE);
+    int serial_fd = open_serial(options.device, options.baud);
     if (serial_fd < 0) {
         perror("Serial open failed");
         return 1;
@@ -90,7 +122,7 @@ if (options.daemon) sleep(10);
     mavlink_status_t status;
 
     while (1) {
-        int len = read_serial(serial_fd, buffer, sizeof(buffer));
+        int len = read_serial(serial_fd, buffer, sizeof (buffer));
         if (len <= 0) {
             usleep(1000);
             continue;
@@ -108,10 +140,10 @@ if (options.daemon) sleep(10);
                 } else if (msg.msgid == MAVLINK_MSG_ID_SYS_STATUS) {
                     mavlink_sys_status_t sys;
                     mavlink_msg_sys_status_decode(&msg, &sys);
-                    
+
                     float voltage = sys.voltage_battery / 1000.0f; // mV → V
-                    float current = sys.current_battery / 100.0f;   // cA → A
-                    
+                    float current = sys.current_battery / 100.0f; // cA → A
+
                     printf("Batterie: %.2f V, %.2f A\n", voltage, current);
 
                 } else if (msg.msgid == MAVLINK_MSG_ID_BATTERY_STATUS) { /* 147 */
@@ -124,32 +156,32 @@ if (options.daemon) sleep(10);
                             printf("        Zelle %d: %.3f V\n", i + 1, bat.voltages[i] / 1000.0f);
                     }
                     printf("  Strom: %.2f A\n", bat.current_battery / 100.0f);*/
-                } else if (msg.msgid == MAVLINK_MSG_ID_POWER_STATUS      /* 125 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_SERVO_OUTPUT_RAW  /*  36 */ || 
-                           msg.msgid == MAVLINK_MSG_ID_SYSTEM_TIME       /*   2 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_NAV_CONTROLLER_OUTPUT /* 62 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_RC_CHANNELS       /* 65 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_RAW_IMU           /* 27 */ || 
-                           msg.msgid == MAVLINK_MSG_ID_GPS_RAW_INT       /* 24 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_SCALED_PRESSURE       /* 29 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_ATTITUDE           /* 30 */ || 
-                           msg.msgid == MAVLINK_MSG_ID_LOCAL_POSITION_NED       /* 32 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT   /* 33 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_MISSION_CURRENT /* 42*/ ||
-                           msg.msgid == MAVLINK_MSG_ID_VFR_HUD /* 74 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT /* 87 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_TERRAIN_REQUEST   /* 133 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_TERRAIN_CHECK /* 135 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_TERRAIN_REPORT  /* 136 */ ||
-                           msg.msgid == MAVLINK_MSG_ID_VIBRATION   /* 241 */
-                           ) {
+
+                } else if (msg.msgid == MAVLINK_MSG_ID_POWER_STATUS            /* 125 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_SERVO_OUTPUT_RAW           /*  36 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_SYSTEM_TIME                /*   2 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_NAV_CONTROLLER_OUTPUT      /* 62 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_RC_CHANNELS                /* 65 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_RAW_IMU                    /* 27 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_GPS_RAW_INT                /* 24 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_SCALED_PRESSURE            /* 29 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_ATTITUDE                   /* 30 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_LOCAL_POSITION_NED         /* 32 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT        /* 33 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_MISSION_CURRENT            /* 42*/ ||
+                        msg.msgid == MAVLINK_MSG_ID_VFR_HUD                    /* 74 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT /* 87 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_TERRAIN_REQUEST            /* 133 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_TERRAIN_CHECK              /* 135 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_TERRAIN_REPORT             /* 136 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_VIBRATION                  /* 241 */
+                        ) {
 
                     //printf("### finde diese msg-id %d\n", msg.msgid);
 
                 } else {
                     printf("### unknown msg-id %d\n", msg.msgid);
                 }
-
 
                 uint8_t out_buf[MAVLINK_MAX_PACKET_LEN];
                 int out_len = mavlink_msg_to_send_buffer(out_buf, &msg);

@@ -6,7 +6,9 @@ typedef struct __options_t {
    bool  daemon;
    bool  verbose;
    char  *device;
+   int   baud;
 } options_t;
 
-void parseoptions(int argc, char *argv[]);
-void print_usage();
+void parseOptions(int argc, char *argv[]);
+void printUsage();
+void getProgramName(char *argv[]);

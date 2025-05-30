@@ -54,3 +54,4 @@ build/
 mavlink/
 Makefile
 nbproject/
+/dist/
