@@ -34,20 +34,34 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <pthread.h>
 
 
 extern char *progname;
+extern bool debug;
+pthread_mutex_t lock;
 
-int open_serial(const char* device, int baudrate) {
-    int fd = open(device, O_RDWR | O_NOCTTY);
+int openSerial(const char* device, int baudrate) {
+    if (debug)
+        printf("DEBUG: serial port %s try to open\n", device);
+
+    int fd = open(device, O_RDWR | O_NOCTTY  | O_NDELAY);
     if (fd < 0) {
-        fprintf(stderr, "%s: error to open device : %s\n", progname, device, strerror(errno));
+        fprintf(stderr, "%s: error to open device %s: %s\n", progname, device, strerror(errno));
         return -1;
+    } else {
+        fcntl(fd, F_SETFL, 0);
     }
+    if (debug)
+        printf("DEBUG: serial port %s opend\n", device);
 
     struct termios options;
     memset(&options, 0, sizeof(options));
-    tcgetattr(fd, &options);
+
+    if (tcgetattr(fd, &options) < 0) {
+        fprintf(stderr, "%s: could not read configuration of fd %d\n", progname, fd);
+        return -1;
+    }
 
     switch (baudrate) {
         case 9600:
@@ -76,23 +90,79 @@ int open_serial(const char* device, int baudrate) {
             break;
                 
     }
-    printf("baudrate set to %d\n", baudrate);
+    printf("DEBUG: baudrate set to %d\n", baudrate);
 
+/*
     options.c_cflag |= (CLOCAL | CREAD | CS8);
     options.c_cflag &= ~(PARENB | CSTOPB | CSIZE);
     options.c_iflag &= ~(IXON | IXOFF | IXANY);
     options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
     options.c_oflag &= ~OPOST;
+*/
 
+/*
+    options.c_iflag &= ~(IGNBRK | BRKINT | ICRNL | INLCR | PARMRK | INPCK | ISTRIP | IXON);
+    options.c_oflag &= ~(OCRNL | ONLCR | ONLRET | ONOCR | OFILL | OPOST);
+    options.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN | ISIG);
+    options.c_cflag &= ~(CSIZE | PARENB);
+    options.c_cflag |= CS8;
+    options.c_cc[VMIN] = 1;
+    options.c_cc[VTIME] = 10;
+*/
+
+    // Control Flags: 8N1, aktivieren Receiver, ignorieren Modemsteuerung
+    options.c_cflag &= ~PARENB;                // Keine Parität
+    options.c_cflag &= ~CSTOPB;                // 1 Stopbit
+    options.c_cflag &= ~CSIZE;                 // Maskiere Datengrößen-Bits
+    options.c_cflag |= CS8;                    // 8 Datenbits
+    options.c_cflag |= CLOCAL | CREAD;         // Lokal, Empfang aktivieren
+
+    // Input Flags: keine Umwandlungen, kein Flow Control
+    options.c_iflag &= ~(IXON | IXOFF | IXANY);          // keine SW Flow Control
+    options.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | INPCK);
+
+    // Output Flags: kein \n → \r\n
+    options.c_oflag &= ~OPOST;
+
+    // Local Flags: kein Echo, keine Signale, kein Canonical Mode
+    options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG | IEXTEN);
+
+    // Blocking Read: warte auf 1 Zeichen, kein Timeout
+    options.c_cc[VMIN] = 1;
+    options.c_cc[VTIME] = 0;
+
+/*
     tcsetattr(fd, TCSANOW, &options);
+*/
+    if (tcsetattr(fd, TCSAFLUSH, &options) < 0) {
+        fprintf(stderr, "%s: could not set configuration of fd %d\n", progname, fd);
+        return -1;
+    }
+
+    if (pthread_mutex_init(&lock, NULL) != 0) {
+        fprintf(stderr, "%s: create a mutex failed\n", progname);
+        return -1;
+    }
+
     return fd;
 }
 
-int read_serial(int fd, uint8_t* buf, int buf_size) {
-    return read(fd, buf, buf_size);
+int readSerial(int fd, uint8_t* buffer, int buffer_size) {
+    pthread_mutex_lock(&lock);
+    int bytesRead = read(fd, buffer, buffer_size);
+    pthread_mutex_unlock(&lock);
+    return bytesRead;
 }
 
-void close_serial(int fd) {
+int writeSerial(int fd, uint8_t* buffer, int len) {
+    pthread_mutex_lock(&lock);
+    int bytesWrite = write(fd, buffer, len);
+    tcdrain(fd);
+    pthread_mutex_unlock(&lock);
+    return bytesWrite;
+}
+
+void closeSerial(int fd) {
     close(fd);
 }
 

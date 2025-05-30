@@ -1,7 +1,10 @@
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 
-int open_serial(const char* device, int baudrate);
-int read_serial(int fd, uint8_t* buf, int buf_size);
-void close_serial(int fd);
+int openSerial(const char* device, int baudrate);
+int readSerial(int fd, uint8_t* buffer, int buffer_size);
+int writeSerial(int fd, uint8_t* buffer, int len);
+void closeSerial(int fd);
+void statusSerial();
 

@@ -40,16 +40,18 @@
 #include "udp.h"
 #include "option.h"
 #include "common/mavlink.h"
+#include "logging.h"
 
 
 #define SERIAL_DEVICE "/dev/ttyACM0"
 #define SERIAL_DEVICE_BAUDRATE 57600
 
-#define UDP_IP "192.168.178.52"
+#define UDP_IP "10.100.1.102"
 #define UDP_PORT 14550
 
 options_t options;
 extern char *progname;
+extern bool debug;
 
 int main(int argc, char *argv[]) {
 
@@ -58,7 +60,19 @@ int main(int argc, char *argv[]) {
     options.device = SERIAL_DEVICE;
     options.baud = SERIAL_DEVICE_BAUDRATE;
     parseOptions(argc, argv);
+//test
+    
+    log_set_level(DEBUG);
+    log_set_file("log.txt", 1024 * 256); // 1 MB
 
+    LOG__INFO("Starte Logging");
+    for (int i = 0; i < 100000; ++i) {
+        LOG__DEBUG("Zyklus %d läuft", i);
+    }
+
+    log_close();
+    
+    
     if (options.daemon) {
         pid_t pid = fork();
         switch (pid) {
@@ -95,11 +109,14 @@ int main(int argc, char *argv[]) {
 
         //        chdir("/");
         //        umask(0);
+    } else {
+        if (debug)
+            printf("DEBUG: process continues direct, no daemon\n");
     }
 
     if (options.daemon) sleep(10);
 
-    int serial_fd = open_serial(options.device, options.baud);
+    int serial_fd = openSerial(options.device, options.baud);
     if (serial_fd < 0) {
         perror("Serial open failed");
         return 1;
@@ -116,12 +133,12 @@ int main(int argc, char *argv[]) {
     mavlink_status_t status;
 
     while (1) {
-        int len = read_serial(serial_fd, buffer, sizeof (buffer));
+        int len = readSerial(serial_fd, buffer, sizeof (buffer));
         if (len <= 0) {
             usleep(1000);
             continue;
         }
-
+        //printf("begin len%d\n", len);
         for (int i = 0; i < len; ++i) {
             if (mavlink_parse_char(MAVLINK_COMM_0, buffer[i], &msg, &status)) {
 
@@ -165,6 +182,7 @@ int main(int argc, char *argv[]) {
                         msg.msgid == MAVLINK_MSG_ID_MISSION_CURRENT            /* 42*/ ||
                         msg.msgid == MAVLINK_MSG_ID_VFR_HUD                    /* 74 */ ||
                         msg.msgid == MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT /* 87 */ ||
+                        msg.msgid == MAVLINK_MSG_ID_TIMESYNC                   /* 111 */ ||
                         msg.msgid == MAVLINK_MSG_ID_TERRAIN_REQUEST            /* 133 */ ||
                         msg.msgid == MAVLINK_MSG_ID_TERRAIN_CHECK              /* 135 */ ||
                         msg.msgid == MAVLINK_MSG_ID_TERRAIN_REPORT             /* 136 */ ||
@@ -182,9 +200,32 @@ int main(int argc, char *argv[]) {
                 send_udp_packet(udp_fd, out_buf, out_len);
             }
         }
+        //printf("ende\n");
+
+        uint8_t bufferRX[1024];
+        int lenRX = recv_udp_packet(udp_fd, bufferRX, sizeof(bufferRX));
+        //printf("empfange per udp %d bytes\n", lenRX);
+        if (lenRX <= 0) {
+            usleep(1000);
+            continue;
+        }
+        for (int i = 0; i < lenRX; ++i) {
+            mavlink_message_t msgRX;
+            mavlink_status_t statusRX;
+            if (mavlink_parse_char(MAVLINK_COMM_1, bufferRX[i], &msgRX, &statusRX)) {
+                printf("[UDP] MAVLink msgid: %d\n", msgRX.msgid);
+                // → Hier MAVLink von Mission Planner verarbeiten
+                uint8_t out_buf[MAVLINK_MAX_PACKET_LEN];
+                int out_len = mavlink_msg_to_send_buffer(out_buf, &msgRX);
+                printf("upd-rx-> len:%d\n", out_len);
+                writeSerial(serial_fd, out_buf, out_len);
+            }
+        }
+        //writeSerial(serial_fd, bufferRX, sizeof(bufferRX));
+        
     }
 
-    close_serial(serial_fd);
+    closeSerial(serial_fd);
     close(udp_fd);
     return 0;
 }

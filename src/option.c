@@ -38,6 +38,7 @@
 #include "option.h"
 extern options_t options;
 char *progname;
+bool debug = false;
 
 #define FILESEPERATOR '/'
 
@@ -45,6 +46,7 @@ char *progname;
 static struct option long_options[] = {
     {"help",     no_argument,       0, 'h'},
     {"daemon",   no_argument,       0, 'D'},
+    {"debug",    no_argument,       0, 'v'},
 
     {"device",   required_argument, 0, 'd'},
     {"baudrate", required_argument, 0, 'b'},
@@ -66,6 +68,10 @@ void parseOptions(int argc, char *argv[]) {
             case 'D':
                 options.daemon = true;
                 printf("run as daemon\n");
+                break;
+
+            case 'v':
+                debug = true;
                 break;
 
             case 'd':
