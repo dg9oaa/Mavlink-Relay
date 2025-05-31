@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(mavlink_udp_client C)
+project(mavrelayclient C)
 
 set(CMAKE_C_STANDARD 99)
 
@@ -9,6 +9,7 @@ set(SOURCES
     src/serial.c
     src/udp.c
     src/option.c
+    src/logging.c
 )
 
 # target_include_directories(${PROJECT_NAME} PRIVATE mavlink/include/mavlink/v2.0)
