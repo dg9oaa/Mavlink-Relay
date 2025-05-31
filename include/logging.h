@@ -44,15 +44,18 @@ extern "C" {
         ERROR
     } LogLevel;
 
-    void log_set_level(LogLevel level);
-    void log_set_file(const char *filename, size_t max_size_bytes);
-    void log_close();
+    /** set log level */
+    void logSetLevel(LogLevel level);
+    void logSetFile(const char *filename, size_t max_size_bytes);
+    void logSTD();
+    const LogLevel logStringToLevel(const char *string);
+    void logClose();
     void log_msg(LogLevel level, const char *fmt, ...);
 
-#define LOG__DEBUG(...) log_msg(LOG_DEBUG, __VA_ARGS__)
-#define LOG__INFO(...) log_msg(LOG_INFO,  __VA_ARGS__)
-#define LOG__WARN(...) log_msg(LOG_WARN,  __VA_ARGS__)
-#define LOG__ERROR(...) log_msg(LOG_ERROR, __VA_ARGS__)
+#define LOG__DEBUG(...) log_msg(DEBUG, __VA_ARGS__)
+#define LOG__INFO(...) log_msg(INFO,  __VA_ARGS__)
+#define LOG__WARN(...) log_msg(WARN,  __VA_ARGS__)
+#define LOG__ERROR(...) log_msg(ERROR, __VA_ARGS__)
 
 
 #ifdef __cplusplus

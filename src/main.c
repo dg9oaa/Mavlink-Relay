@@ -35,6 +35,7 @@
 #include <syslog.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <sys/select.h>
 
 #include "serial.h"
 #include "udp.h"
@@ -51,26 +52,28 @@
 
 options_t options;
 extern char *progname;
-extern bool debug;
+
 
 int main(int argc, char *argv[]) {
 
     getProgramName(argv);
 
-    options.device = SERIAL_DEVICE;
-    options.baud = SERIAL_DEVICE_BAUDRATE;
+    logSetLevel(WARN);
+    options.level_dflt = "warn";
+    options.level = options.level_dflt;
+
+    options.device_dflt = SERIAL_DEVICE;
+    options.baud_dflt = SERIAL_DEVICE_BAUDRATE;
+    options.server = UDP_IP;
+    options.port = UDP_PORT;
+
     parseOptions(argc, argv);
-//test
-    
-    log_set_level(DEBUG);
-    log_set_file("log.txt", 1024 * 256); // 1 MB
 
-    LOG__INFO("Starte Logging");
-    for (int i = 0; i < 100000; ++i) {
-        LOG__DEBUG("Zyklus %d läuft", i);
-    }
-
-    log_close();
+    logSTD();
+    LOG__DEBUG("Teste Logging %s", options.level);
+    LOG__INFO("Teste Logging %s", options.level);
+    LOG__WARN("Teste Logging %s", options.level);
+    LOG__ERROR("Teste Logging %s", options.level);
     
     
     if (options.daemon) {
@@ -88,7 +91,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (setsid() < 0) {
-            syslog(LOG_ERR, "Fehler in setsid(): %s.\n", strerror(errno));
+            fprintf(stderr, "%s: error in setsid(): %s\n", progname, strerror(errno));
             exit(EXIT_FAILURE);
         }
 
@@ -110,8 +113,7 @@ int main(int argc, char *argv[]) {
         //        chdir("/");
         //        umask(0);
     } else {
-        if (debug)
-            printf("DEBUG: process continues direct, no daemon\n");
+        LOG__DEBUG("process continues direct, no daemon");
     }
 
     if (options.daemon) sleep(10);
@@ -132,7 +134,39 @@ int main(int argc, char *argv[]) {
     mavlink_message_t msg;
     mavlink_status_t status;
 
-    while (1) {
+    while (true) {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(serial_fd, &readfds);
+        FD_SET(udp_fd, &readfds);
+
+        int maxfd = (serial_fd > udp_fd) ? serial_fd : udp_fd;
+        struct timeval timeout = {1, 0};
+
+        int ret = select(maxfd + 1, &readfds, NULL, NULL, &timeout);
+        if (ret < 0) {
+            perror("select");
+            break;
+        } else if (ret == 0) {
+            continue;
+        }
+        
+        if (FD_ISSET(serial_fd, &readfds)) {
+            ssize_t len = readSerial(serial_fd, buffer, sizeof(buffer));
+            if (len > 0) {
+                send_udp_packet(udp_fd, buffer, len);
+            }
+        }
+
+        if (FD_ISSET(udp_fd, &readfds)) {
+            ssize_t len = recv_udp_packet(udp_fd, buffer, sizeof(buffer));
+            if (len > 0) {
+                writeSerial(serial_fd, buffer, len);
+            }
+        }
+    }
+
+    while (false) {
         int len = readSerial(serial_fd, buffer, sizeof (buffer));
         if (len <= 0) {
             usleep(1000);

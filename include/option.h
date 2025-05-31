@@ -1,14 +1,72 @@
-#pragma once
+/* 
+ * MIT License
+ * 
+ * Copyright (c) 2025 Jonny Röker
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ * 
+ * File:   option.h
+ * Author: jonny
+ *
+ * Created on 31. Mai 2025
+ */
+
+#ifndef OPTION_H
+#define OPTION_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdbool.h>
 
-typedef struct __options_t {
-   bool  daemon;
-   bool  verbose;
-   char  *device;
-   int   baud;
-} options_t;
+    typedef struct __options_t {
+        bool daemon;
+        char *level;
+        char *level_dflt;
+        char *device;
+        char *device_dflt;
+        int baud;
+        int baud_dflt;
+        char *server;
+        int port;
+        char *function;
+    } options_t;
 
-void parseOptions(int argc, char *argv[]);
-void printUsage();
-void getProgramName(char *argv[]);
+    typedef struct __prognames_t {
+        bool mavrelayclient;
+        bool mavrelayserver;
+        bool mavrelay;
+    } prognames_t;
+
+    typedef enum {
+        mavrelayclient,
+        mavrelayserver,
+        mavrelay
+    } ProgFunction;
+
+    void parseOptions(int argc, char *argv[]);
+    void printUsage();
+    void getProgramName(char *argv[]);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* OPTION_H */

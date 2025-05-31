@@ -35,17 +35,25 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 static LogLevel current_level = INFO;
 static FILE *log_file = NULL;
 static char log_filename[256] = "log.txt";
 static size_t max_log_size = 1024 * 1024; // default: 1 MB
+static bool log_to_std = false;
 
-void log_set_level(LogLevel level) {
+extern char *progname;
+
+void logSTD() {
+    log_to_std = true;
+}
+
+void logSetLevel(LogLevel level) {
     current_level = level;
 }
 
-void log_set_file(const char *filename, size_t max_size_bytes) {
+void logSetFile(const char *filename, size_t max_size_bytes) {
     strncpy(log_filename, filename, sizeof (log_filename) - 1);
     max_log_size = max_size_bytes;
     log_file = fopen(log_filename, "a");
@@ -55,14 +63,14 @@ void log_set_file(const char *filename, size_t max_size_bytes) {
     }
 }
 
-void log_close() {
+void logClose() {
     if (log_file && log_file != stderr) {
         fclose(log_file);
         log_file = NULL;
     }
 }
 
-static const char *level_to_string(LogLevel level) {
+static const char *levelToString(LogLevel level) {
     switch (level) {
         case DEBUG: return "DEBUG";
         case INFO: return "INFO";
@@ -70,6 +78,17 @@ static const char *level_to_string(LogLevel level) {
         case ERROR: return "ERROR";
         default: return "LOG";
     }
+}
+
+const LogLevel logStringToLevel(const char *string) {
+    if (strcmp("DEBUG", string) == 0)
+        return DEBUG;
+    else if (strcmp("INFO", string) == 0)
+        return INFO;
+    else if (strcmp("WARN", string) == 0)
+        return WARN;
+    else
+        return ERROR;
 }
 
 static void check_logfile_size_and_rotate() {
@@ -86,15 +105,23 @@ static void check_logfile_size_and_rotate() {
 void log_msg(LogLevel level, const char *fmt, ...) {
     if (level < current_level) return;
 
-    check_logfile_size_and_rotate();
+    FILE *out;
+    if (!log_to_std) {
+        check_logfile_size_and_rotate();
 
-    time_t now = time(NULL);
-    struct tm *t = localtime(&now);
-    char timebuf[20];
-    strftime(timebuf, sizeof (timebuf), "%Y-%m-%d %H:%M:%S", t);
+        time_t now = time(NULL);
+        struct tm *t = localtime(&now);
+        char timebuf[20];
+        strftime(timebuf, sizeof (timebuf), "%Y-%m-%d %H:%M:%S", t);
 
-    FILE *out = log_file ? log_file : stderr;
-    fprintf(out, "[%s] %-5s: ", timebuf, level_to_string(level));
+        out = log_file ? log_file : stderr;
+        fprintf(out, "[%s] %-5s: ", timebuf, levelToString(level));
+
+    } else {
+        out = stderr;
+        fprintf(out, "%s [%-5s]: ", progname, levelToString(level));
+    }
+
 
     va_list args;
     va_start(args, fmt);

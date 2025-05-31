@@ -24,10 +24,11 @@
  * File:   serial.c
  * Author: jonny
  *
- * Created on 29. Mai 2025, 
+ * Created on 29. Mai 2025
  */
 
 #include "serial.h"
+#include "logging.h"
 #include <fcntl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -38,12 +39,11 @@
 
 
 extern char *progname;
-extern bool debug;
 pthread_mutex_t lock;
 
 int openSerial(const char* device, int baudrate) {
-    if (debug)
-        printf("DEBUG: serial port %s try to open\n", device);
+
+    LOG__DEBUG("serial port %s try to open", device);
 
     int fd = open(device, O_RDWR | O_NOCTTY  | O_NDELAY);
     if (fd < 0) {
@@ -52,8 +52,8 @@ int openSerial(const char* device, int baudrate) {
     } else {
         fcntl(fd, F_SETFL, 0);
     }
-    if (debug)
-        printf("DEBUG: serial port %s opend\n", device);
+
+    LOG__DEBUG("serial port %s opend", device);
 
     struct termios options;
     memset(&options, 0, sizeof(options));
@@ -90,7 +90,7 @@ int openSerial(const char* device, int baudrate) {
             break;
                 
     }
-    printf("DEBUG: baudrate set to %d\n", baudrate);
+    LOG__DEBUG("baudrate set to %d", baudrate);
 
 /*
     options.c_cflag |= (CLOCAL | CREAD | CS8);

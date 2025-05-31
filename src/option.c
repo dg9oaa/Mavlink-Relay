@@ -34,24 +34,30 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
+#include <ctype.h>
 
 #include "option.h"
+#include "logging.h"
+
 extern options_t options;
 char *progname;
-bool debug = false;
+
 
 #define FILESEPERATOR '/'
 
 
 static struct option long_options[] = {
-    {"help",     no_argument,       0, 'h'},
-    {"daemon",   no_argument,       0, 'D'},
-    {"debug",    no_argument,       0, 'v'},
+    {"help",      no_argument,       0, 'h'},
+    {"daemon",    no_argument,       0, 'D'},
+    {"loglevel",  required_argument, 0, 'L'},
 
-    {"device",   required_argument, 0, 'd'},
-    {"baudrate", required_argument, 0, 'b'},
+    {"device",    required_argument, 0, 'd'},
+    {"baudrate",  required_argument, 0, 'b'},
 
-    {"port",     required_argument, 0, 'p'},
+    {"server",    required_argument, 0, 's'},
+    {"port",      required_argument, 0, 'p'},
+
+    {"function",  required_argument, 0, 'f'},
     {0, 0, 0, 0}
 };
 
@@ -70,8 +76,17 @@ void parseOptions(int argc, char *argv[]) {
                 printf("run as daemon\n");
                 break;
 
-            case 'v':
-                debug = true;
+            case 'L':
+            {
+                char *str = strdup(optarg);
+                char *s = str;
+                while (*s) {
+                    *s = toupper((unsigned char) *s);
+                    s++;
+                }
+                logSetLevel(logStringToLevel(str));
+                options.level = str;
+            }
                 break;
 
             case 'd':
@@ -90,6 +105,12 @@ void parseOptions(int argc, char *argv[]) {
                 break;
         }
     }
+    if (options.baud == 0)
+        options.baud = options.baud_dflt;
+    if (options.device == NULL)
+        options.device = options.device_dflt;
+
+    //printUsage();
 }
 
 /**
@@ -109,5 +130,19 @@ void getProgramName(char *argv[]) {
 
 void printUsage() {
     printf("Usage: \n");
+
+    printf(
+            "Usage: %s [OPTIONS]\n"
+            "Where:\n"
+            "  --device      Serial MAVLink device (%s by default)\n"
+            "  --baudrate    Serial MAVLink baudrate (%d by default)\n"
+            "  --server      Server address (%s by default)\n"
+            "  --port        Server port (%d by default)\n"
+            "  --loglevel    Setting the log level (%s by default)\n"
+            "  --daemon      Runs the program in the background and detaches it from the input shell\n"
+            "  --function    Program function (client, server, direct). Is actually controlled via the program name (mavrelayclient, mavrelayserver, mavrelay)\n"
+            "  --help        Display this help\n"
+            , progname, options.device_dflt, options.baud_dflt, options.server, options.port, options.level_dflt );
+    
     exit(EXIT_FAILURE);
 }
