@@ -46,7 +46,7 @@ int setup_udp_client_socket(const char* remote_ip, int port) {
     addr.sin_port = htons(port);
     inet_pton(AF_INET, remote_ip, &addr.sin_addr);
 
-    if (pthread_mutex_init(&lock_tty, NULL) != 0) {
+    if (pthread_mutex_init(&lock_udp, NULL) != 0) {
         fprintf(stderr, "%s: create a mutex failed\n", progname);
         return -1;
     }
