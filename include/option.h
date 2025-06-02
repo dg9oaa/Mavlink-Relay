@@ -38,21 +38,28 @@ extern "C" {
 
     typedef struct __options_t {
         bool daemon;
-        char *level;
-        char *level_dflt;
-        char *device;
-        char *device_dflt;
-        int baud;
-        int baud_dflt;
+        char loglevel[16];
+        char loglevel_dflt[16];
+        char device[32];
+        char device_dflt[32];
+        int baudrate;
+        int baudrate_dflt;
         char *server;
         int port;
         char *function;
     } options_t;
 
+    typedef struct __jsonconfig_t {
+        bool is_used;
+        char *file;
+        char *defaultfile;
+        char *function;
+    } jsonconfig_t;
+
     typedef struct __prognames_t {
-        bool mavrelayclient;
-        bool mavrelayserver;
-        bool mavrelay;
+        char* mavrelayclient;
+        char* mavrelayserver;
+        char* mavrelay;
     } prognames_t;
 
     typedef enum {
@@ -61,9 +68,11 @@ extern "C" {
         mavrelay
     } ProgFunction;
 
-    void parseOptions(int argc, char *argv[]);
-    void printUsage();
-    void getProgramName(char *argv[]);
+    void parse_options(int argc, char *argv[]);
+    bool parse_config(int argc, char *argv[]);
+    void print_usage();
+    void get_program_name(char *argv[]);
+    int  load_config_from_json(const char* filename, options_t* cfg, const char* function);
 
 #ifdef __cplusplus
 }

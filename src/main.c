@@ -43,6 +43,7 @@
 #include "common/mavlink.h"
 #include "logging.h"
 
+#define JSON_CONFIG_FILE "/etc/mavlinkrelay.json"
 
 #define SERIAL_DEVICE "/dev/ttyACM0"
 #define SERIAL_DEVICE_BAUDRATE 57600
@@ -50,30 +51,49 @@
 #define UDP_IP "10.100.1.102"
 #define UDP_PORT 14550
 
-options_t options;
 extern char *progname;
+options_t options;
+jsonconfig_t jsonconfig;
+prognames_t prognames;
 
+
+/**
+ * initialize
+ */
+void initialize() {
+    logSetLevel(WARN);
+    
+    strcpy(options.loglevel_dflt, "warn");
+    strcpy(options.loglevel, options.loglevel_dflt);
+
+    jsonconfig.defaultfile = JSON_CONFIG_FILE;
+    prognames.mavrelay = "mavlinkrelay";
+    prognames.mavrelayclient = "mavrelayclient";
+    prognames.mavrelayserver = "mavrelayserver";
+}
 
 int main(int argc, char *argv[]) {
 
-    getProgramName(argv);
+    get_program_name(argv);
+    initialize();
 
-    logSetLevel(WARN);
-    options.level_dflt = "warn";
-    options.level = options.level_dflt;
-
-    options.device_dflt = SERIAL_DEVICE;
-    options.baud_dflt = SERIAL_DEVICE_BAUDRATE;
+    // first test json config exists
+    if (parse_config(argc, argv)) {
+        
+    }
+    exit(EXIT_SUCCESS);
+    strlcpy(options.device_dflt, SERIAL_DEVICE, sizeof options.device_dflt);
+    options.baudrate_dflt = SERIAL_DEVICE_BAUDRATE;
     options.server = UDP_IP;
     options.port = UDP_PORT;
 
-    parseOptions(argc, argv);
+    parse_options(argc, argv);
 
     logSTD();
-    LOG__DEBUG("Teste Logging %s", options.level);
-    LOG__INFO("Teste Logging %s", options.level);
-    LOG__WARN("Teste Logging %s", options.level);
-    LOG__ERROR("Teste Logging %s", options.level);
+    LOG__DEBUG("Teste Logging %s", options.loglevel);
+    LOG__INFO("Teste Logging %s", options.loglevel);
+    LOG__WARN("Teste Logging %s", options.loglevel);
+    LOG__ERROR("Teste Logging %s", options.loglevel);
     
     
     if (options.daemon) {
@@ -118,7 +138,7 @@ int main(int argc, char *argv[]) {
 
     if (options.daemon) sleep(10);
 
-    int serial_fd = openSerial(options.device, options.baud);
+    int serial_fd = openSerial(options.device, options.baudrate);
     if (serial_fd < 0) {
         perror("Serial open failed");
         return 1;
@@ -263,3 +283,4 @@ int main(int argc, char *argv[]) {
     close(udp_fd);
     return 0;
 }
+

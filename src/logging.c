@@ -107,6 +107,7 @@ void log_msg(LogLevel level, const char *fmt, ...) {
 
     FILE *out;
     if (!log_to_std) {
+printf("log->no std|");
         check_logfile_size_and_rotate();
 
         time_t now = time(NULL);
@@ -118,6 +119,7 @@ void log_msg(LogLevel level, const char *fmt, ...) {
         fprintf(out, "[%s] %-5s: ", timebuf, levelToString(level));
 
     } else {
+printf("log->std|");
         out = stderr;
         fprintf(out, "%s [%-5s]: ", progname, levelToString(level));
     }
