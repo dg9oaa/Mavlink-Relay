@@ -35,7 +35,7 @@
 #include <pthread.h>
 
 extern char *progname;
-pthread_mutex_t lock;
+pthread_mutex_t lock_tty;
 
 int setup_udp_client_socket(const char* remote_ip, int port) {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -46,7 +46,7 @@ int setup_udp_client_socket(const char* remote_ip, int port) {
     addr.sin_port = htons(port);
     inet_pton(AF_INET, remote_ip, &addr.sin_addr);
 
-    if (pthread_mutex_init(&lock, NULL) != 0) {
+    if (pthread_mutex_init(&lock_tty, NULL) != 0) {
         fprintf(stderr, "%s: create a mutex failed\n", progname);
         return -1;
     }
@@ -64,7 +64,7 @@ int setup_udp_server_socket(int port) {
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(port);
 
-    if (pthread_mutex_init(&lock, NULL) != 0) {
+    if (pthread_mutex_init(&lock_tty, NULL) != 0) {
         fprintf(stderr, "%s: create a mutex failed\n", progname);
         return -1;
     }
@@ -77,15 +77,15 @@ int setup_udp_server_socket(int port) {
 }
 
 int send_udp_packet(int sockfd, const uint8_t* data, int len) {
-    pthread_mutex_lock(&lock);
+    pthread_mutex_lock(&lock_tty);
     int bytesWrite = send(sockfd, data, len, 0);
-    pthread_mutex_unlock(&lock);
+    pthread_mutex_unlock(&lock_tty);
     return bytesWrite;
 }
 
 int recv_udp_packet(int sockfd, uint8_t* buffer, int maxlen) {
-    pthread_mutex_lock(&lock);
+    pthread_mutex_lock(&lock_tty);
     int bytesRead = recv(sockfd, buffer, maxlen, MSG_DONTWAIT); // non-blocking
-    pthread_mutex_unlock(&lock);
+    pthread_mutex_unlock(&lock_tty);
     return bytesRead;
 }

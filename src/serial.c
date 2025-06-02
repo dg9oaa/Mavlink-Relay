@@ -39,7 +39,7 @@
 
 
 extern char *progname;
-pthread_mutex_t lock;
+pthread_mutex_t lock_tty;
 
 int openSerial(const char* device, int baudrate) {
 
@@ -139,7 +139,7 @@ int openSerial(const char* device, int baudrate) {
         return -1;
     }
 
-    if (pthread_mutex_init(&lock, NULL) != 0) {
+    if (pthread_mutex_init(&lock_tty, NULL) != 0) {
         fprintf(stderr, "%s: create a mutex failed\n", progname);
         return -1;
     }
@@ -148,17 +148,17 @@ int openSerial(const char* device, int baudrate) {
 }
 
 int readSerial(int fd, uint8_t* buffer, int buffer_size) {
-    pthread_mutex_lock(&lock);
+    pthread_mutex_lock(&lock_tty);
     int bytesRead = read(fd, buffer, buffer_size);
-    pthread_mutex_unlock(&lock);
+    pthread_mutex_unlock(&lock_tty);
     return bytesRead;
 }
 
 int writeSerial(int fd, uint8_t* buffer, int len) {
-    pthread_mutex_lock(&lock);
+    pthread_mutex_lock(&lock_tty);
     int bytesWrite = write(fd, buffer, len);
     tcdrain(fd);
-    pthread_mutex_unlock(&lock);
+    pthread_mutex_unlock(&lock_tty);
     return bytesWrite;
 }
 
