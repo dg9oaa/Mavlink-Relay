@@ -192,6 +192,7 @@ printf("-2\n");
  * @return 0 if true
  */
 int load_config_from_json(const char* filename, options_t* cfg, const char* function) {
+printf("-3 %s  %s\n", progname, filename);
     FILE* jsonfile = fopen(filename, "rb");
     if (!jsonfile) {
         LOG__ERROR("%s: %s - No such file or directory", progname, filename);
