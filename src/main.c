@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * Copyright (c) 2025 Jonny Röker
+ * Copyright (c) 2025 Jonny Roeker
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
  * File:   main.c
  * Author: jonny
  *
- * Created on 30. Mai 2025, 14:26
+ * Created on 29. Mai 2025
  */
 
 #include <stdio.h>
@@ -43,7 +43,8 @@
 #include "common/mavlink.h"
 #include "logging.h"
 
-#define JSON_CONFIG_FILE "/etc/mavlinkrelay.json"
+#define JSON_CONFIG_FILE "/etc/mavlink-repeater.json"
+#define PID_FILE "/tmp/mavrpts.pid"
 
 #define SERIAL_DEVICE "/dev/ttyACM0"
 #define SERIAL_DEVICE_BAUDRATE 57600
@@ -56,45 +57,102 @@ options_t options;
 jsonconfig_t jsonconfig;
 prognames_t prognames;
 
+void write_pidfile(const char* filename);
+
+volatile sig_atomic_t stop_requested = 0;
+volatile sig_atomic_t reconfigure = 0;
 
 /**
  * initialize
  */
 void initialize() {
-    logSetLevel(WARN);
-    
-    strcpy(options.loglevel_dflt, "warn");
+    LogLevel initialize_loglevel = LOGLEVEL_WARN;
+    log_set_level(initialize_loglevel);
+    char tmpll[10];
+    sprintf(tmpll, "%s", loglevel_to_string(initialize_loglevel));
+    strcpy(options.loglevel_dflt, tmpll);
     strcpy(options.loglevel, options.loglevel_dflt);
+    //log_set_file("/tmp/mavtest.log", 512 * 1024);
+
+    // for test
+/*
+    strcpy(options.loglevel, "debug");
+    log_set_level(loglevel_from_string(options.loglevel));
+    log_set_level(LOGLEVEL_DEBUG);
+*/
 
     jsonconfig.defaultfile = JSON_CONFIG_FILE;
-    prognames.mavrelay = "mavlinkrelay";
-    prognames.mavrelayclient = "mavrelayclient";
-    prognames.mavrelayserver = "mavrelayserver";
+    prognames.mav_repeater = "mavrpt";    // MAVLink repeater forwards directly from the air station to the ground station
+    prognames.mav_repeater_client = "mavrptclient";    // MAVLink repeater Client routes the data from the Air Station through the existing IP tunnel to the Ground Station server
+    prognames.mav_repeater_server = "mavrptserver";    // MAVLink repeater Server handles the connection from the IP tunnel of the air station/clients and establishes a connection to a ground station software
+
+    strlcpy(options.device_dflt, SERIAL_DEVICE, sizeof options.device_dflt);
+    options.baudrate_dflt = SERIAL_DEVICE_BAUDRATE;
+}
+
+
+void signal_handler(int signal) {
+    if (signal == SIGHUP) {
+        reconfigure = 1;
+    }
+    if (signal == SIGINT || signal == SIGTERM) {
+        stop_requested = 1;
+        // Optional: sofortige Aufräumaktion hier
+        // z.B. printf("Signal %d empfangen\n", signal);
+    }
 }
 
 int main(int argc, char *argv[]) {
+
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+    signal(SIGHUP, signal_handler);
 
     get_program_name(argv);
     initialize();
 
     // first test json config exists
     if (parse_config(argc, argv)) {
-        
+        printf("Konfiguration für '%s':\n", jsonconfig.function);
+        printf("  device   : %s\n", options.device);
+        printf("  baudrate : %d\n", options.baudrate);
+        printf("  server   : %s\n", options.server);
+        printf("  loglevel : %s\n", options.loglevel);
+        printf("  daemon   : %d\n", options.daemon);
+        printf("  logfile  : %s\n", options.logfile);
+        printf("  logfilesize: %d\n", options.logfilesize);
+  //      exit(EXIT_SUCCESS);
+
+        // set logfile and size
+        if (strlen(options.logfile) > 0) {
+            int logsize = 0;
+            if (options.logfilesize > 0)
+                logsize = options.logfilesize;
+            else
+                logsize = LOGFILE_DEFAULT_SIZE;
+            log_set_file(options.logfile, logsize);
+        } else {
+            logSTD(); // log to stdout/stderror
+        }
+
+        // set loglevel
+        if (strcmp(options.loglevel, options.loglevel_dflt) != 0) {
+            log_set_level(loglevel_from_string(options.loglevel));
+        }
+
+
+    } else {
+        options.baudrate = options.baudrate_dflt;
+        strcpy(options.device, options.device_dflt);
     }
-    exit(EXIT_SUCCESS);
-    strlcpy(options.device_dflt, SERIAL_DEVICE, sizeof options.device_dflt);
-    options.baudrate_dflt = SERIAL_DEVICE_BAUDRATE;
-    options.server = UDP_IP;
-    options.port = UDP_PORT;
 
     parse_options(argc, argv);
 
-    logSTD();
     LOG__DEBUG("Teste Logging %s", options.loglevel);
     LOG__INFO("Teste Logging %s", options.loglevel);
     LOG__WARN("Teste Logging %s", options.loglevel);
     LOG__ERROR("Teste Logging %s", options.loglevel);
-    
+
     
     if (options.daemon) {
         pid_t pid = fork();
@@ -150,11 +208,12 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    write_pidfile(PID_FILE);
     uint8_t buffer[1024];
     mavlink_message_t msg;
     mavlink_status_t status;
 
-    while (true) {
+    while (! stop_requested) {
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(serial_fd, &readfds);
@@ -163,23 +222,38 @@ int main(int argc, char *argv[]) {
         int maxfd = (serial_fd > udp_fd) ? serial_fd : udp_fd;
         struct timeval timeout = {1, 0};
 
-        int ret = select(maxfd + 1, &readfds, NULL, NULL, &timeout);
-        if (ret < 0) {
-            perror("select");
-            break;
-        } else if (ret == 0) {
+        int result = select(maxfd + 1, &readfds, NULL, NULL, &timeout);
+        if (result < 0) {
+            if (errno == EINTR && stop_requested) {
+                LOG__INFO("Program termination detected");
+                break;
+
+            } else if (errno == EINTR && reconfigure) {
+                //printf("Signalunterbrechung erkannt. Reconfigure....\n");
+                // implement later
+                continue;
+            } else {
+                perror("select");
+                break;
+            }
+
+        } else if (result == 0) {
             continue;
         }
         
+        LOG__TRACE("try to read serial port...");
         if (FD_ISSET(serial_fd, &readfds)) {
             ssize_t len = readSerial(serial_fd, buffer, sizeof(buffer));
+            LOG__TRACE("read %d bytes from serial port...", len);
             if (len > 0) {
                 send_udp_packet(udp_fd, buffer, len);
             }
         }
 
+        LOG__TRACE("try to read udp port...");
         if (FD_ISSET(udp_fd, &readfds)) {
             ssize_t len = recv_udp_packet(udp_fd, buffer, sizeof(buffer));
+            LOG__TRACE("read %d bytes from udp port...", len);
             if (len > 0) {
                 writeSerial(serial_fd, buffer, len);
             }
@@ -279,8 +353,24 @@ int main(int argc, char *argv[]) {
         
     }
 
+    LOG__INFO("Program will be terminated");
     closeSerial(serial_fd);
     close(udp_fd);
+    unlink(PID_FILE);
     return 0;
 }
 
+/**
+ * write the process-id in a file
+ * @param filename
+ */
+void write_pidfile(const char* filename) {
+    FILE* f = fopen(filename, "w");
+    if (!f) {
+        perror("Can't write PID-File");
+        return;
+    }
+
+    fprintf(f, "%d\n", getpid());
+    fclose(f);
+}

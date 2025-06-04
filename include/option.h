@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * Copyright (c) 2025 Jonny Röker
+ * Copyright (c) 2025 Jonny Roeker
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,13 +40,15 @@ extern "C" {
         bool daemon;
         char loglevel[16];
         char loglevel_dflt[16];
+        char logfile[256];
+        int  logfilesize;
         char device[32];
         char device_dflt[32];
         int baudrate;
         int baudrate_dflt;
-        char *server;
+        char server[32];
         int port;
-        char *function;
+        char function[32];
     } options_t;
 
     typedef struct __jsonconfig_t {
@@ -57,15 +59,15 @@ extern "C" {
     } jsonconfig_t;
 
     typedef struct __prognames_t {
-        char* mavrelayclient;
-        char* mavrelayserver;
-        char* mavrelay;
+        char* mav_repeater_client;
+        char* mav_repeater_server;
+        char* mav_repeater;
     } prognames_t;
 
     typedef enum {
-        mavrelayclient,
-        mavrelayserver,
-        mavrelay
+        mavrptclient,
+        mavrptserver,
+        mavrpt
     } ProgFunction;
 
     void parse_options(int argc, char *argv[]);

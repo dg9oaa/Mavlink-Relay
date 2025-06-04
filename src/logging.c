@@ -36,24 +36,38 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <ctype.h>
 
-static LogLevel current_level = INFO;
+static LogLevel current_level = LOGLEVEL_INFO;
 static FILE *log_file = NULL;
-static char log_filename[256] = "log.txt";
-static size_t max_log_size = 1024 * 1024; // default: 1 MB
-static bool log_to_std = false;
+static char log_filename[256] = LOGFILE_DEFAULT_NAME;
+static size_t max_log_size = LOGFILE_DEFAULT_SIZE_MAX;
+static bool log_to_stdout = false;
+
+const char* loglevel_strings[] = {
+    "TRACE",
+    "DEBUG",
+    "INFO",
+    "WARN",
+    "ERROR",
+    "NONE"
+};
 
 extern char *progname;
 
 void logSTD() {
-    log_to_std = true;
+    log_to_stdout = true;
 }
 
-void logSetLevel(LogLevel level) {
+/**
+ * set the log level
+ * @param level
+ */
+void log_set_level(LogLevel level) {
     current_level = level;
 }
 
-void logSetFile(const char *filename, size_t max_size_bytes) {
+void log_set_file(const char *filename, size_t max_size_bytes) {
     strncpy(log_filename, filename, sizeof (log_filename) - 1);
     max_log_size = max_size_bytes;
     log_file = fopen(log_filename, "a");
@@ -63,32 +77,92 @@ void logSetFile(const char *filename, size_t max_size_bytes) {
     }
 }
 
-void logClose() {
+void log_close() {
     if (log_file && log_file != stderr) {
         fclose(log_file);
         log_file = NULL;
     }
 }
 
-static const char *levelToString(LogLevel level) {
-    switch (level) {
-        case DEBUG: return "DEBUG";
-        case INFO: return "INFO";
-        case WARN: return "WARN";
-        case ERROR: return "ERROR";
-        default: return "LOG";
+/**
+ * returns LogLevel as string
+ * @param level
+ * @return 
+ */
+const char* loglevel_to_string(LogLevel level) {
+    if (level >= 0 && level < LOGLEVEL_COUNT) {
+        return loglevel_strings[level];
     }
+    return "DEBUG"; //unknown";
 }
 
-const LogLevel logStringToLevel(const char *string) {
-    if (strcmp("DEBUG", string) == 0)
-        return DEBUG;
-    else if (strcmp("INFO", string) == 0)
-        return INFO;
-    else if (strcmp("WARN", string) == 0)
-        return WARN;
-    else
-        return ERROR;
+/**
+ * returns a LogLevel
+ * @param string
+ * @return LogLevel
+ */
+const LogLevel loglevel_from_string(const char* string) {
+    char *str = strdup(string);
+    char *s = str;
+    while (*s) {
+        *s = toupper((unsigned char) *s);
+        s++;
+    }
+    for (int i = 0; i < LOGLEVEL_COUNT; i++) {
+        if (strcmp(str, loglevel_strings[i]) == 0) {
+            return (LogLevel) i;
+        }
+    }
+    return LOGLEVEL_ERROR; // fallback
+}
+
+
+
+
+ /**
+ * split the absolut path
+  * 
+ * @param fullpath
+ * @param out_dir
+ * @param dir_size
+ * @param out_base
+ * @param base_size
+ * @param out_ext
+ * @param ext_size
+ */
+static void split_path_components(const char* fullpath, char* out_dir, size_t dir_size,
+        char* out_base, size_t base_size,
+        char* out_ext, size_t ext_size) {
+
+    const char* last_slash = strrchr(fullpath, '/');
+    //if (!last_slash) last_slash = strrchr(fullpath, '\\');  // für Windows
+
+    if (last_slash) {
+        size_t path_len = last_slash - fullpath;
+        if (path_len >= dir_size) path_len = dir_size - 1;
+        strncpy(out_dir, fullpath, path_len);
+        out_dir[path_len] = '\0';
+
+        strncpy(out_base, last_slash + 1, base_size - 1);
+        out_base[base_size - 1] = '\0';
+    } else {
+        // kein Verzeichnisteil enthalten
+        strncpy(out_dir, ".", dir_size - 1);
+        out_dir[dir_size - 1] = '\0';
+
+        strncpy(out_base, fullpath, base_size - 1);
+        out_base[base_size - 1] = '\0';
+    }
+
+    // Extension (falls vorhanden)
+    char* dot = strrchr(out_base, '.');
+    if (dot) {
+        strncpy(out_ext, dot + 1, ext_size - 1);
+        out_ext[ext_size - 1] = '\0';
+        *dot = '\0'; // entferne die Extension vom Basename
+    } else {
+        out_ext[0] = '\0';
+    }
 }
 
 static void check_logfile_size_and_rotate() {
@@ -97,17 +171,23 @@ static void check_logfile_size_and_rotate() {
     struct stat st;
     if (stat(log_filename, &st) == 0 && st.st_size >= max_log_size) {
         fclose(log_file);
-        rename(log_filename, "log.old");
+
+        char dir[256], base[256], ext[64];
+        split_path_components(log_filename, dir, sizeof(dir), base, sizeof(base), ext, sizeof(ext));
+        char old_logfile[256];
+        sprintf(old_logfile, "%s/%s.old", dir, base);
+        //printf("--neue datei:%s\n", old_logfile);
+
+        rename(log_filename, old_logfile);
         log_file = fopen(log_filename, "w"); // neue Datei
     }
 }
 
 void log_msg(LogLevel level, const char *fmt, ...) {
     if (level < current_level) return;
-
+check_logfile_size_and_rotate();
     FILE *out;
-    if (!log_to_std) {
-printf("log->no std|");
+    if (!log_to_stdout) {
         check_logfile_size_and_rotate();
 
         time_t now = time(NULL);
@@ -116,12 +196,12 @@ printf("log->no std|");
         strftime(timebuf, sizeof (timebuf), "%Y-%m-%d %H:%M:%S", t);
 
         out = log_file ? log_file : stderr;
-        fprintf(out, "[%s] %-5s: ", timebuf, levelToString(level));
+        fprintf(out, "[%s] %-5s: ", timebuf, loglevel_to_string(level));
 
     } else {
-printf("log->std|");
+//printf("log->std|");
         out = stderr;
-        fprintf(out, "%s [%-5s]: ", progname, levelToString(level));
+        fprintf(out, "%s [%-5s]: ", progname, loglevel_to_string(level));
     }
 
 
@@ -133,3 +213,4 @@ printf("log->std|");
     fprintf(out, "\n");
     fflush(out);
 }
+

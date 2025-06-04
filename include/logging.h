@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * Copyright (c) 2025 Jonny Röker
+ * Copyright (c) 2025 Jonny Roeker
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,25 +37,35 @@ extern "C" {
 
 #include <stdio.h>
 
+#define LOGFILE_DEFAULT_NAME     "/tmp/mavrpt.log"
+#define LOGFILE_DEFAULT_SIZE     512 * 1024
+#define LOGFILE_DEFAULT_SIZE_MAX 1024 * 1024 // default: 1 MB
+
+
     typedef enum {
-        DEBUG,
-        INFO,
-        WARN,
-        ERROR
+        LogLevel_TRACE,
+        LOGLEVEL_DEBUG,
+        LOGLEVEL_INFO,
+        LOGLEVEL_WARN,
+        LOGLEVEL_ERROR,
+        LOGLEVEL_NONE,
+        LOGLEVEL_COUNT
     } LogLevel;
 
     /** set log level */
-    void logSetLevel(LogLevel level);
-    void logSetFile(const char *filename, size_t max_size_bytes);
+    void log_set_level(LogLevel level);
+    void log_set_file(const char *filename, size_t max_size_bytes);
     void logSTD();
-    const LogLevel logStringToLevel(const char *string);
-    void logClose();
+    const LogLevel loglevel_from_string(const char *string);
+    const char* loglevel_to_string(LogLevel level);
+    void log_close();
     void log_msg(LogLevel level, const char *fmt, ...);
 
-#define LOG__DEBUG(...) log_msg(DEBUG, __VA_ARGS__)
-#define LOG__INFO(...) log_msg(INFO,  __VA_ARGS__)
-#define LOG__WARN(...) log_msg(WARN,  __VA_ARGS__)
-#define LOG__ERROR(...) log_msg(ERROR, __VA_ARGS__)
+#define LOG__TRACE(...) log_msg(LogLevel_TRACE, __VA_ARGS__)
+#define LOG__DEBUG(...) log_msg(LOGLEVEL_DEBUG, __VA_ARGS__)
+#define LOG__INFO(...) log_msg(LOGLEVEL_INFO,  __VA_ARGS__)
+#define LOG__WARN(...) log_msg(LOGLEVEL_WARN,  __VA_ARGS__)
+#define LOG__ERROR(...) log_msg(LOGLEVEL_ERROR, __VA_ARGS__)
 
 
 #ifdef __cplusplus

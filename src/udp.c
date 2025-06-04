@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * Copyright (c) 2025 Jonny Röker
+ * Copyright (c) 2025 Jonny Roeker
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
  * File:   udp.c
  * Author: jonny
  *
- * Created on 29. Mai 2025, 14:26
+ * Created on 31. Mai 2025
  */
 
 #include "udp.h"

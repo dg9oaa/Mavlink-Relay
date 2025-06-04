@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * Copyright (c) 2025 Jonny Röker
+ * Copyright (c) 2025 Jonny Roeker
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
  * File:   option.c
  * Author: jonny
  *
- * Created on 29. Mai 2025, 14:26
+ * Created on 29. Mai 2025
  */
 
 
@@ -95,7 +95,7 @@ void parse_options(int argc, char *argv[]) {
                     *s = toupper((unsigned char) *s);
                     s++;
                 }
-                logSetLevel(logStringToLevel(str));
+                log_set_level(loglevel_from_string(str));
                 strlcpy(options.loglevel, str, sizeof options.loglevel);
             }
                 break;
@@ -154,7 +154,7 @@ bool parse_config(int argc, char *argv[]) {
     LOG__DEBUG("default json file:%s   file given:%s   function:%s\n", jsonconfig.defaultfile, jsonconfig.file, jsonconfig.function);
 
     if (jsonconfig.function == NULL) {
-        if ((strcmp(prognames.mavrelay, progname) == 0) || (strcmp(prognames.mavrelayclient, progname) == 0) || (strcmp(prognames.mavrelayserver, progname) == 0)) {
+        if ((strcmp(prognames.mav_repeater, progname) == 0) || (strcmp(prognames.mav_repeater_client, progname) == 0) || (strcmp(prognames.mav_repeater_server, progname) == 0)) {
             LOG__DEBUG("search %s in json config", progname);
             jsonconfig.function = progname;
         } else {
@@ -164,16 +164,24 @@ bool parse_config(int argc, char *argv[]) {
     }
 
     if (load_config_from_json(jsonconfig.file, &options, jsonconfig.function) == 0) {
+        if (strlen(options.logfile) == 0) {
+            fprintf(stderr, "%s: No log file configured\n", progname);
+        }
+/*
         printf("Konfiguration für '%s':\n", jsonconfig.function);
         printf("  device   : %s\n", options.device);
         printf("  baudrate : %d\n", options.baudrate);
         printf("  loglevel : %s\n", options.loglevel);
         printf("  daemon   : %d\n", options.daemon);
+        printf("  logfile  : %s\n", options.logfile);
+        printf("  logfilesize: %d\n", options.logfilesize);
+*/
     } else {
-        printf("Konfiguration konnte nicht geladen werden.\n");
+        LOG__WARN("Could not load configuration");
+        return false;
     }
     
-    return false;
+    return true;
 }
 
 /**
@@ -220,16 +228,23 @@ int load_config_from_json(const char* filename, options_t* cfg, const char* func
         if (cJSON_IsString(logitem) && logitem->valuestring) {
             strncpy(cfg->loglevel, logitem->valuestring, sizeof (cfg->loglevel) - 1);
         }
+        logitem = cJSON_GetObjectItemCaseSensitive(global, "logfile");
+        if (cJSON_IsString(logitem) && logitem->valuestring) {
+            strncpy(cfg->logfile, logitem->valuestring, sizeof (cfg->logfile) - 1);
+        }
+        logitem = cJSON_GetObjectItemCaseSensitive(global, "logfilesize");
+        if (cJSON_IsNumber(logitem)) {
+            cfg->logfilesize = logitem->valueint;
+        }
+        
     }
 
-//    if (function != NULL) {
     cJSON* section = cJSON_GetObjectItemCaseSensitive(root, function);
     if (!section) {
         LOG__WARN("mode '%s' not found", function);
         cJSON_Delete(root);
         return 1;
     }
-//    }
 
     cJSON* item;
 
@@ -241,6 +256,16 @@ int load_config_from_json(const char* filename, options_t* cfg, const char* func
     item = cJSON_GetObjectItemCaseSensitive(section, "baudrate");
     if (cJSON_IsNumber(item)) {
         cfg->baudrate = item->valueint;
+    }
+
+    item = cJSON_GetObjectItemCaseSensitive(section, "server");
+    if (cJSON_IsString(item) && item->valuestring) {
+        strncpy(cfg->server, item->valuestring, sizeof (cfg->server) - 1);
+    }
+
+    item = cJSON_GetObjectItemCaseSensitive(section, "port");
+    if (cJSON_IsNumber(item)) {
+        cfg->port = item->valueint;
     }
 
     item = cJSON_GetObjectItemCaseSensitive(section, "loglevel");
@@ -286,7 +311,7 @@ void print_usage() {
             "  --port        Server port (%d by default)\n"
             "  --loglevel    Setting the log level (%s by default)\n"
             "  --daemon      Runs the program in the background and detaches it from the input shell\n"
-            "  --function    Program function (client, server, direct). Is actually controlled via the program name (mavrelayclient, mavrelayserver, mavrelay)\n"
+            "  --function    Program function (client, server, direct). Is actually controlled via the program name (mavrptclient, mavrptserver, mavrpt)\n"
             "  --help        Display this help\n"
             , progname, options.device_dflt, options.baudrate_dflt, options.server, options.port, options.loglevel_dflt );
 
@@ -294,6 +319,13 @@ void print_usage() {
             "\n or\n"
             "  --config <json config file>  (%s by default)\n"
             "\n", jsonconfig.defaultfile);
+
+    printf(
+            "\n"
+            "\n  Program name or function name:"
+            "  mavrptclient - MAVLink repeater Client routes the data from the Air Station through the existing IP tunnel to the Ground Station server.\n"
+            "  mavrptserver - MAVLink repeater Server handles the connection from the IP tunnel of the air station/clients and establishes a connection to a ground station software.\n"
+            "  mavrpt       - MAVLink repeater forwards directly from the air station to the ground station. Similar to MAVProxy.\n");
     
     exit(EXIT_FAILURE);
 }

@@ -1,0 +1,29 @@
+{
+    "global": {
+        "loglevel": "debug",
+        "logfile": "/tmp/mavrpt.log",
+        "logfilesize": 262144
+    },
+    "mavrptclient": {
+        "device": "/dev/tty_clienbt",
+        "baudrate": 57600,
+        "server": "merlin",
+        "port": 14550,
+        "loglevel": "info",
+        "daemon": true
+    },
+    "mavrptserver": {
+        "device": "/dev/tty_relay",
+        "baudrate": 115200,
+        "loglevel": "debug",
+        "daemon": false
+    },
+    "mavrpt": {
+        "device": "/dev/tty.usbmodem148101",
+        "baudrate": 115200,
+        "server": "10.100.1.102",
+        "port": 14550,
+        "loglevel": "info",
+        "daemon": false
+    }
+}
