@@ -50,7 +50,7 @@ char *progname;
 #define FILESEPERATOR '/'
 
 
-static struct option long_options[] = {
+static struct option cmd_options[] = {
     {"help",      no_argument,       0, 'h'},
     {"daemon",    no_argument,       0, 'D'},
     {"loglevel",  required_argument, 0, 'L'},
@@ -61,22 +61,26 @@ static struct option long_options[] = {
     {"server",    required_argument, 0, 's'},
     {"port",      required_argument, 0, 'p'},
 
+    {"config",    required_argument, 0, 'c'},
     {"function",  required_argument, 0, 'f'},
     {0, 0, 0, 0}
 };
 
+/*
 static struct option json_options[] = {
     {"help",      no_argument,       0, 'h'},
     {"config",    required_argument, 0, 'c'},
     {"function",  required_argument, 0, 'f'},
     {0, 0, 0, 0}
 };
+*/
 
 void parse_options(int argc, char *argv[]) {
     int opt = 0;
     int long_index = 0;
 
-    while ((opt = getopt_long_only(argc, argv, "", long_options, &long_index)) != -1) {
+    while ((opt = getopt_long_only(argc, argv, "", cmd_options, &long_index)) != -1) {
+        printf("test optarg2 %c\n", opt);
         switch (opt) {
             case 'h':
                 print_usage();
@@ -134,8 +138,9 @@ void parse_options(int argc, char *argv[]) {
 bool parse_config(int argc, char *argv[]) {
     int opt = 0;
     int json_index = 0;
-
-    while ((opt = getopt_long_only(argc, argv, "", json_options, &json_index)) != -1) {
+    printf("vor optarg 1\n");
+    while ((opt = getopt_long_only(argc, argv, "", cmd_options, &json_index)) != -1) {
+        printf("test optarg1 %d\n", opt);
         switch (opt) {
             case 'h':
                 print_usage();
@@ -148,9 +153,13 @@ bool parse_config(int argc, char *argv[]) {
             case 'f':
                 jsonconfig.function = optarg;
                 break;
+            default:
+                printf("nix optarg %d\n", opt);
+                break;
         }
     }
 
+    printf("nach optarg 1\n");
     if (jsonconfig.file == NULL) {
         jsonconfig.file = jsonconfig.defaultfile;
     }
@@ -196,7 +205,7 @@ bool parse_config(int argc, char *argv[]) {
  * @return 0 if true
  */
 int load_config_from_json(const char* filename, options_t* cfg, const char* function) {
-printf("-3 %s  %s\n", progname, filename);
+
     FILE* jsonfile = fopen(filename, "rb");
     if (!jsonfile) {
         LOG__ERROR("%s: %s - No such file or directory", progname, filename);
