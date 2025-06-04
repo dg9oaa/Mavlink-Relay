@@ -80,7 +80,6 @@ void parse_options(int argc, char *argv[]) {
     int long_index = 0;
 
     while ((opt = getopt_long_only(argc, argv, "", cmd_options, &long_index)) != -1) {
-        printf("test optarg2 %c\n", opt);
         switch (opt) {
             case 'h':
                 print_usage();
@@ -101,6 +100,7 @@ void parse_options(int argc, char *argv[]) {
                 }
                 log_set_level(loglevel_from_string(str));
                 strncpy(options.loglevel, str, sizeof options.loglevel);
+                log_set_level(loglevel_from_string(options.loglevel));
             }
                 break;
 
@@ -138,9 +138,8 @@ void parse_options(int argc, char *argv[]) {
 bool parse_config(int argc, char *argv[]) {
     int opt = 0;
     int json_index = 0;
-    printf("vor optarg 1\n");
+
     while ((opt = getopt_long_only(argc, argv, "", cmd_options, &json_index)) != -1) {
-        printf("test optarg1 %d\n", opt);
         switch (opt) {
             case 'h':
                 print_usage();
@@ -153,13 +152,9 @@ bool parse_config(int argc, char *argv[]) {
             case 'f':
                 jsonconfig.function = optarg;
                 break;
-            default:
-                printf("nix optarg %d\n", opt);
-                break;
         }
     }
 
-    printf("nach optarg 1\n");
     if (jsonconfig.file == NULL) {
         jsonconfig.file = jsonconfig.defaultfile;
     }
