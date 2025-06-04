@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include <stdbool.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -36,6 +37,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <sys/select.h>
+#include <signal.h>
 
 #include "serial.h"
 #include "udp.h"
@@ -86,7 +88,7 @@ void initialize() {
     prognames.mav_repeater_client = "mavrptclient";    // MAVLink repeater Client routes the data from the Air Station through the existing IP tunnel to the Ground Station server
     prognames.mav_repeater_server = "mavrptserver";    // MAVLink repeater Server handles the connection from the IP tunnel of the air station/clients and establishes a connection to a ground station software
 
-    strlcpy(options.device_dflt, SERIAL_DEVICE, sizeof options.device_dflt);
+    strncpy(options.device_dflt, SERIAL_DEVICE, sizeof options.device_dflt);
     options.baudrate_dflt = SERIAL_DEVICE_BAUDRATE;
 }
 

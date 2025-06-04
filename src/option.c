@@ -96,12 +96,12 @@ void parse_options(int argc, char *argv[]) {
                     s++;
                 }
                 log_set_level(loglevel_from_string(str));
-                strlcpy(options.loglevel, str, sizeof options.loglevel);
+                strncpy(options.loglevel, str, sizeof options.loglevel);
             }
                 break;
 
             case 'd':
-                strlcpy(options.device, optarg, sizeof options.device);
+                strncpy(options.device, optarg, sizeof options.device);
                 break;
 
             case 'b':
