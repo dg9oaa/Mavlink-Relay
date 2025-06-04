@@ -150,7 +150,7 @@ bool parse_config(int argc, char *argv[]) {
                 break;
         }
     }
-
+printf("-1\n");
     LOG__DEBUG("default json file:%s   file given:%s   function:%s\n", jsonconfig.defaultfile, jsonconfig.file, jsonconfig.function);
 
     if (jsonconfig.function == NULL) {
@@ -163,6 +163,7 @@ bool parse_config(int argc, char *argv[]) {
         }
     }
 
+printf("-2\n");
     if (load_config_from_json(jsonconfig.file, &options, jsonconfig.function) == 0) {
         if (strlen(options.logfile) == 0) {
             fprintf(stderr, "%s: No log file configured\n", progname);
@@ -180,7 +181,7 @@ bool parse_config(int argc, char *argv[]) {
         LOG__WARN("Could not load configuration");
         return false;
     }
-    
+printf("-2\n");
     return true;
 }
 
